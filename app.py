@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Load environment variables from .env.local
+# Load environment variables from .env.local (local development)
 load_dotenv('.env.local')
 
 # Page configuration

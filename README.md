@@ -1,18 +1,13 @@
 # 🧠 Personality AI Chat
 
-A modern Streamlit chatbot that provides AI responses tailored to your unique MBTI personality type.
+A modern Streamlit chatbot that provides AI responses tailored to your unique personality type.
 
 ## ✨ Features
 
-- **16 MBTI Personality Types** - Choose from all Myers-Briggs personality types
 - **Personalized AI Responses** - Get answers tailored to your cognitive preferences
 - **Modern UI Design** - Clean, minimalist interface with smooth animations
 - **Chat History** - Keep track of your conversations
 - **Powered by Mistral-7B** - Using Together.ai's advanced language model
-
-## 🚀 Live Demo
-
-[Visit the live application](your-deployment-url-here)
 
 ## 🛠️ Technologies Used
 
@@ -65,7 +60,7 @@ This application can be deployed on various platforms:
 
 The chatbot uses Together.ai's Mistral-7B model with personality-specific prompts:
 
-- **Personalized Responses** - Each MBTI type gets tailored communication style
+- **Personalized Responses** - Each personality type gets tailored communication style
 - **Context Awareness** - Considers cognitive preferences and decision-making patterns
 - **Error Handling** - Robust API error management
 - **Rate Limiting** - Handles API limits gracefully
