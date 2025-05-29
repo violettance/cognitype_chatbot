@@ -1,9 +1,10 @@
 [project]
-name = "repl-nix-workspace"
+name = "cognitype-chatbot"
 version = "0.1.0"
-description = "Add your description here"
+description = "Personality-based AI chatbot using Mistral-7B and Together AI"
 requires-python = ">=3.11"
 dependencies = [
     "requests>=2.32.3",
     "streamlit>=1.45.1",
+    "python-dotenv>=1.0.0",
 ]
