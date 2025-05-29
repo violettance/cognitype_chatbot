@@ -48,13 +48,6 @@ This application can be deployed on various platforms:
 - **Render** (Free tier with sleep mode)
 - **DigitalOcean App Platform** ($5/month)
 
-## 🎨 UI Features
-
-- **Gradient Headers** - Beautiful purple gradient design
-- **Responsive Layout** - Works on desktop and mobile
-- **Dark/Light Theme** - Minimalist color scheme
-- **Smooth Animations** - Loading dots and hover effects
-- **Custom Fonts** - Inter font family for modern typography
 
 ## 🤖 AI Integration
 
@@ -64,14 +57,6 @@ The chatbot uses Together.ai's Mistral-7B model with personality-specific prompt
 - **Context Awareness** - Considers cognitive preferences and decision-making patterns
 - **Error Handling** - Robust API error management
 - **Rate Limiting** - Handles API limits gracefully
-
-## 📊 Personality Insights
-
-Each personality type includes:
-- **Population Statistics** - How rare/common the type is
-- **Strengths & Preferences** - Key cognitive abilities
-- **Career Suggestions** - Fields where the type excels
-- **Fun Facts** - Interesting insights about the type
 
 ## 🔒 Environment Variables
 
