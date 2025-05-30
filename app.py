@@ -5,9 +5,32 @@ import os
 import time
 from datetime import datetime
 from dotenv import load_dotenv
+from memobase import MemoBaseClient, ChatBlob
+import uuid
 
 # Load environment variables from .env.local (local development)
 load_dotenv('.env.local')
+
+# Initialize Memobase client
+def init_memobase():
+    """Initialize Memobase client for long-term memory"""
+    try:
+        project_url = os.getenv("MEMOBASE_URL", "https://api.memobase.dev")
+        api_key = os.getenv("MEMOBASE_API_KEY")
+        
+        if not api_key:
+            st.warning("⚠️ Memobase API key not found. Memory features disabled.")
+            return None
+            
+        mb = MemoBaseClient(project_url=project_url, api_key=api_key)
+        if mb.ping():
+            return mb
+        else:
+            st.warning("⚠️ Could not connect to Memobase. Memory features disabled.")
+            return None
+    except Exception as e:
+        st.warning(f"⚠️ Memobase initialization failed: {str(e)}")
+        return None
 
 # Page configuration
 st.set_page_config(
@@ -16,6 +39,60 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# JavaScript for localStorage functionality
+st.markdown("""
+<script>
+function saveNameToLocalStorage(name) {
+    localStorage.setItem('cognitype_user_name', name);
+}
+
+function getNameFromLocalStorage() {
+    return localStorage.getItem('cognitype_user_name') || '';
+}
+
+function savePersonalityToLocalStorage(personality) {
+    localStorage.setItem('cognitype_personality', personality);
+}
+
+function getPersonalityFromLocalStorage() {
+    return localStorage.getItem('cognitype_personality') || '';
+}
+
+function getUserIdFromLocalStorage() {
+    return localStorage.getItem('cognitype_user_id') || '';
+}
+
+function saveUserIdToLocalStorage(userId) {
+    localStorage.setItem('cognitype_user_id', userId);
+}
+
+function getMemobaseUserIdFromLocalStorage() {
+    return localStorage.getItem('cognitype_memobase_uid') || '';
+}
+
+function saveMemobaseUserIdToLocalStorage(uid) {
+    localStorage.setItem('cognitype_memobase_uid', uid);
+}
+
+// New functions for browser-to-memobase mapping
+function getBrowserIdFromLocalStorage() {
+    return localStorage.getItem('cognitype_browser_user_id') || '';
+}
+
+function saveBrowserIdToLocalStorage(browserId) {
+    localStorage.setItem('cognitype_browser_user_id', browserId);
+}
+
+function getMemobaseMappingForBrowser(browserId) {
+    return localStorage.getItem('cognitype_memobase_mapping_' + browserId) || '';
+}
+
+function saveMemobaseMappingForBrowser(browserId, memobaseId) {
+    localStorage.setItem('cognitype_memobase_mapping_' + browserId, memobaseId);
+}
+</script>
+""", unsafe_allow_html=True)
 
 # Custom CSS for modern styling
 st.markdown("""
@@ -35,13 +112,31 @@ st.markdown("""
         padding-bottom: 1rem !important;
     }
     
+    /* Hide scrollbar */
+    html {
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+    }
+    
+    body {
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+    }
+    
+    /* Move content higher */
+    .main .block-container {
+        padding-top: 0rem !important;
+        margin-top: -1rem !important;
+        max-width: 100% !important;
+    }
+    
     /* Header Styling */
     .main-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
+        padding: 1.5rem;
         border-radius: 15px;
-        margin-bottom: 2rem;
-        margin-top: -0.5rem !important;
+        margin-bottom: 1rem;
+        margin-top: -1rem !important;
         text-align: center;
         color: white;
         box-shadow: 0 10px 30px rgba(0,0,0,0.1);
@@ -96,6 +191,7 @@ st.markdown("""
         padding: 1.5rem;
         margin: 1rem 0;
         border: 1px solid #e2e8f0;
+        position: relative;
     }
     
     .chat-message {
@@ -120,26 +216,72 @@ st.markdown("""
         border: 1px solid #e2e8f0;
     }
     
-    /* Button Styling */
+    /* Chat save button positioning */
+    .chat-save-button {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        z-index: 10;
+    }
+    
+    /* Purple styling for save buttons */
+    .chat-container .stButton > button {
+        background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.4rem 0.8rem !important;
+        font-size: 0.85rem !important;
+        font-weight: 600 !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3) !important;
+        min-height: 36px !important;
+        cursor: pointer !important;
+        position: relative !important;
+        z-index: 100 !important;
+        pointer-events: auto !important;
+    }
+    
+    .chat-container .stButton > button:hover {
+        background: linear-gradient(135deg, #7c3aed 0%, #9333ea 100%) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4) !important;
+        cursor: pointer !important;
+    }
+    
+    .chat-container .stButton > button:disabled {
+        background: rgba(100, 100, 100, 0.3) !important;
+        color: #999 !important;
+        transform: none !important;
+        box-shadow: none !important;
+        cursor: not-allowed !important;
+    }
+    
+    /* Fix button container */
+    .chat-container .stButton {
+        z-index: 100 !important;
+        position: relative !important;
+    }
+    
+    /* Button Styling for main buttons */
     .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 25px;
-        padding: 0.75rem 2rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 25px !important;
+        padding: 0.75rem 2rem !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
+        cursor: pointer !important;
+        z-index: 10 !important;
+        position: relative !important;
     }
     
     .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-    }
-    
-    /* Sidebar Styling */
-    .css-1d391kg {
-        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4) !important;
+        cursor: pointer !important;
     }
     
     /* Animation for loading */
@@ -217,23 +359,16 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
-    /* Custom scrollbar */
+    /* Hide sidebar completely */
+    .css-1d391kg {display: none !important;}
+    .css-1l02zno {display: none !important;}
+    section[data-testid="stSidebar"] {display: none !important;}
+    .stSidebar {display: none !important;}
+    
+    /* Hide custom scrollbar completely */
     ::-webkit-scrollbar {
-        width: 8px;
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 10px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+        width: 0px !important;
+        background: transparent !important;
     }
     
     .chat-message strong {
@@ -305,16 +440,27 @@ def get_api_key():
         st.stop()
     return api_key
 
-def create_personalized_prompt(mbti_type, user_question):
-    """Create a personalized prompt based on MBTI type"""
-    mbti_context = f"""You are responding to someone with the {mbti_type} personality type ({MBTI_DESCRIPTIONS.get(mbti_type, '')}). 
-Please tailor your response to match their cognitive preferences, communication style, and decision-making approach. 
-Consider their strengths, potential blind spots, and preferred way of processing information.
+def create_personalized_prompt(mbti_type, user_question, memory_context=""):
+    """Create a personalized prompt based on MBTI type and user memory"""
+    base_prompt = f"""You are an AI chatbot that has the {mbti_type} personality type ({MBTI_DESCRIPTIONS.get(mbti_type, '')}). 
+You are responding TO a user, not AS the user. You have the {mbti_type} cognitive preferences, communication style, and decision-making approach.
+Think and respond like someone with {mbti_type} personality would - with their strengths, perspectives, and communication patterns.
 
-Question: {user_question}
+{memory_context}
 
-Response:"""
-    return mbti_context
+IMPORTANT: If the context from previous conversations contains information about the USER (like their occupation, interests, or personal details), reference that information when responding. You know this about the user from your previous conversations with them.
+
+Instructions for your response:
+- Respond as a {mbti_type} personality type chatbot
+- Use the specific communication style and thinking patterns of {mbti_type}
+- Reference what you know about the USER from previous conversations
+- Give advice/opinions based on your {mbti_type} perspective
+- Be helpful while maintaining your {mbti_type} personality traits
+
+User's Question: {user_question}
+
+Your response as a {mbti_type} chatbot:"""
+    return base_prompt
 
 def call_together_api(prompt, api_key):
     """Make API call to Together.ai's Mistral-7B model"""
@@ -373,11 +519,117 @@ def call_together_api(prompt, api_key):
 if 'conversation_history' not in st.session_state:
     st.session_state.conversation_history = []
 
+if 'clear_input' not in st.session_state:
+    st.session_state.clear_input = False
+
+# Initialize Memobase
+if 'memobase_client' not in st.session_state:
+    st.session_state.memobase_client = init_memobase()
+
+if 'memobase_user' not in st.session_state:
+    st.session_state.memobase_user = None
+
+# Create or get Memobase user
+if st.session_state.memobase_client and st.session_state.memobase_user is None:
+    try:
+        # Smart localStorage-based user management
+        
+        # Step 1: Get or create persistent browser user ID
+        browser_user_id = None
+        
+        # Initialize JavaScript to check localStorage
+        st.markdown("""
+        <script>
+        // Get or create browser user ID
+        let browserId = getBrowserIdFromLocalStorage();
+        if (!browserId) {
+            // Generate new browser ID
+            browserId = 'browser_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+            saveBrowserIdToLocalStorage(browserId);
+            console.log('Created new browser ID:', browserId);
+        } else {
+            console.log('Found existing browser ID:', browserId);
+        }
+        
+        // Check if we have a Memobase mapping for this browser
+        const existingMemobaseId = getMemobaseMappingForBrowser(browserId);
+        
+        // Store data for Python to access
+        window.browserUserData = {
+            browserId: browserId,
+            existingMemobaseId: existingMemobaseId
+        };
+        
+        console.log('Browser-Memobase mapping:', browserId, '->', existingMemobaseId || 'none');
+        </script>
+        """, unsafe_allow_html=True)
+        
+        # Small delay to let JavaScript execute
+        time.sleep(0.1)
+        
+        # For now, we'll use your existing user ID for testing
+        # In production, you'd read the localStorage data properly
+        existing_memobase_id = "b87a1d67-5aa2-4c6b-8d62-a56d841d8d32"
+        
+        try:
+            # Try to load existing Memobase user
+            st.session_state.memobase_user = st.session_state.memobase_client.get_user(existing_memobase_id)
+            st.session_state.memobase_user_id = existing_memobase_id
+            
+            # Ensure mapping is saved in localStorage
+            st.markdown(f"""
+            <script>
+            const browserId = window.browserUserData ? window.browserUserData.browserId : getBrowserIdFromLocalStorage();
+            if (browserId) {{
+                saveMemobaseMappingForBrowser(browserId, '{existing_memobase_id}');
+                console.log('Saved mapping for existing user:', browserId, '->', '{existing_memobase_id}');
+            }}
+            </script>
+            """, unsafe_allow_html=True)
+            
+            # Show success without page jumping using JavaScript
+            st.markdown("""
+            <script>
+            // Create a temporary success notification
+            const notification = document.createElement('div');
+            # Success message removed to prevent page jumping
+            # st.success(f"✨ Got your personalized {selected_mbti} response!")
+            </script>
+            """, unsafe_allow_html=True)
+            
+        except Exception as e:
+            # Could not load existing user - continue silently
+            
+            # Create new Memobase user (Memobase generates the ID)
+            uid = st.session_state.memobase_client.add_user({
+                "app": "cognitype_chatbot",
+                "created_at": datetime.now().isoformat(),
+                "session_type": "persistent_browser"
+            })
+            
+            st.session_state.memobase_user_id = uid  # Memobase-generated ID
+            st.session_state.memobase_user = st.session_state.memobase_client.get_user(uid)
+            
+            # Save the browser -> memobase mapping
+            st.markdown(f"""
+            <script>
+            const browserId = window.browserUserData ? window.browserUserData.browserId : getBrowserIdFromLocalStorage();
+            if (browserId) {{
+                saveMemobaseMappingForBrowser(browserId, '{uid}');
+                console.log('Created new Memobase user and saved mapping:', browserId, '->', '{uid}');
+            }}
+            </script>
+            """, unsafe_allow_html=True)
+            
+    except Exception as e:
+        # Memory system error - continue silently
+        pass
+
 # Main header with modern styling
 st.markdown("""
 <div class="main-header">
     <h1 class="main-title">🧠 Personality AI Chat</h1>
-    <p class="main-subtitle">Get AI responses tailored to your unique personality type</p>
+    <p class="main-subtitle">Get AI responses from different personality types</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -385,15 +637,47 @@ st.markdown("""
 col1, col2 = st.columns([1, 1], gap="large")
 
 with col1:
-    st.markdown("### 🎯 Your Personality Type")
+    st.markdown("### 🎯 Select Chatbot Personality")
     
-    # MBTI type selection with better styling
-    selected_mbti = st.selectbox(
-        "Choose your personality type:",
-        options=MBTI_TYPES,
-        format_func=lambda x: f"{MBTI_EMOJIS[x]} {x}",
-        help="Not sure about your type? Take a free test online!"
-    )
+    # Create two columns for personality type and name
+    type_col, name_col = st.columns([1, 1])
+    
+    with type_col:
+        # MBTI type selection with better styling
+        selected_mbti = st.selectbox(
+            "Personality type:",
+            options=MBTI_TYPES,
+            format_func=lambda x: f"{MBTI_EMOJIS[x]} {x}",
+            help="Not sure about your type? Take a free test online!"
+        )
+    
+    with name_col:
+        # Name input field with localStorage integration
+        # Initialize name from localStorage if available
+        if 'loaded_name' not in st.session_state:
+            # Try to get name from URL parameters as a fallback
+            query_params = st.query_params
+            st.session_state.loaded_name = query_params.get("name", "")
+            
+        user_name = st.text_input(
+            "Your name:",
+            value=st.session_state.loaded_name,
+            placeholder="Enter your name",
+            help="This helps personalize your experience",
+            key="user_name_input"
+        )
+        
+        # Save name to localStorage and URL when it changes
+        if user_name and user_name != st.session_state.loaded_name:
+            st.session_state.loaded_name = user_name
+            # Update URL parameters to persist name
+            if user_name.strip():
+                st.query_params["name"] = user_name
+            st.markdown(f"""
+            <script>
+            saveNameToLocalStorage('{user_name}');
+            </script>
+            """, unsafe_allow_html=True)
     
     # Display selected MBTI description with custom styling
     if selected_mbti:
@@ -415,17 +699,21 @@ with col1:
 with col2:
     st.markdown("### 💭 Ask Your Question")
     
+    # Get user name for personalization
+    display_name = user_name if 'user_name' in locals() and user_name else ""
+    name_suffix = f" {display_name}" if display_name else ""
+    
     # Question input with better styling
     user_question = st.text_area(
-        "What would you like to know?",
+        f"What would you like to know{name_suffix}?",
         placeholder="Ask anything - from career advice to relationship tips, decision-making strategies, or personal growth insights...",
         height=280,
         help="Be specific for more personalized responses!",
-        key=f"question_input_{len(st.session_state.conversation_history)}"
+        key="question_input_stable"  # Use stable key to prevent clearing
     )
     
     # Submit and clear buttons with better layout
-    col_submit, col_clear = st.columns([2, 1])
+    col_submit, col_clear = st.columns([3, 1])
     
     with col_submit:
         submit_button = st.button(
@@ -437,7 +725,7 @@ with col2:
     
     with col_clear:
         clear_button = st.button(
-            "🗑️ Clear Chat",
+            "🗑️ Clear",
             use_container_width=True
         )
 
@@ -449,44 +737,85 @@ if clear_button:
 # Handle submit button with improved loading animation
 if submit_button and user_question.strip():
     if selected_mbti:
-        # Custom loading animation
-        loading_placeholder = st.empty()
-        loading_placeholder.markdown(f"""
-        <div class="loading-animation">
-            <div class="loading-dots">
-                <div></div>
-                <div></div>
-                <div></div>
-                <div></div>
+        # Use a fixed container to prevent page jumping
+        with st.container():
+            # Immediately show loading to provide instant feedback
+            loading_placeholder = st.empty()
+            loading_placeholder.markdown(f"""
+            <div class="loading-animation">
+                <div class="loading-dots">
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                </div>
             </div>
-        </div>
-        <p style="text-align: center; margin-top: 1rem;">
-            🧠 Crafting a personalized {selected_mbti} response...
-        </p>
-        """, unsafe_allow_html=True)
-        
-        # Create personalized prompt
-        prompt = create_personalized_prompt(selected_mbti, user_question)
-        
-        # Get API key
-        api_key = get_api_key()
-        
-        # Make API call
-        response = call_together_api(prompt, api_key)
-        
-        # Clear loading animation
-        loading_placeholder.empty()
-        
-        # Store in conversation history with timestamp
-        st.session_state.conversation_history.append({
-            'mbti_type': selected_mbti,
-            'question': user_question,
-            'response': response,
-            'timestamp': datetime.now().strftime("%H:%M")
-        })
-        
-        # Success message
-        st.success(f"✨ Got your personalized {selected_mbti} response!")
+            <p style="text-align: center; margin-top: 1rem;">
+                🧠 Crafting a personalized {selected_mbti} response...
+            </p>
+            """, unsafe_allow_html=True)
+            
+            # Get memory context from Memobase if available (optimized for speed)
+            memory_context = ""
+            if st.session_state.memobase_user:
+                try:
+                    # Use faster Memobase context() with smaller token size
+                    memory_context = st.session_state.memobase_user.context(
+                        max_token_size=500,  # Reduced from 1000 for speed
+                        profile_event_ratio=0.5,  # Balanced ratio
+                        require_event_summary=False  # Skip summaries for speed
+                    )
+                    
+                    if memory_context and len(memory_context.strip()) > 0:
+                        memory_context = f"\n<user_memory>\n{memory_context}\n</user_memory>\n"
+                        # Update loading message to show memory usage
+                        loading_placeholder.markdown(f"""
+                        <div class="loading-animation">
+                            <div class="loading-dots">
+                                <div></div>
+                                <div></div>
+                                <div></div>
+                                <div></div>
+                            </div>
+                        </div>
+                        <p style="text-align: center; margin-top: 1rem;">
+                            🧠 Crafting a personalized {selected_mbti} response + using your memory...
+                        </p>
+                        """, unsafe_allow_html=True)
+                    else:
+                        memory_context = ""
+                        
+                except Exception as e:
+                    # If memory fails, continue without it for speed
+                    memory_context = ""
+            
+            # Create personalized prompt with memory
+            prompt = create_personalized_prompt(selected_mbti, user_question, memory_context)
+            
+            # Get API key
+            api_key = get_api_key()
+            
+            # Make API call
+            response = call_together_api(prompt, api_key)
+            
+            # Clear loading animation
+            loading_placeholder.empty()
+            
+            # Store in conversation history with timestamp
+            st.session_state.conversation_history.append({
+                'mbti_type': selected_mbti,
+                'question': user_question,
+                'response': response,
+                'timestamp': datetime.now().strftime("%H:%M")
+            })
+            
+            # Prevent page jumping with JavaScript
+            st.markdown("""
+            <script>
+            // Keep scroll position stable
+            window.scrollTo({top: window.scrollY, behavior: 'instant'});
+            </script>
+            """, unsafe_allow_html=True)
     else:
         st.error("🎯 Please select your personality type first!")
 
@@ -496,15 +825,60 @@ if st.session_state.conversation_history:
     
     for i, conversation in enumerate(reversed(st.session_state.conversation_history)):
         timestamp = conversation.get('timestamp', 'Unknown time')
+        conversation_index = len(st.session_state.conversation_history) - 1 - i
         
-        # Create a more chat-like interface
-        st.markdown(f"""
-        <div class="chat-container">
+        # Create container with save button next to user message header
+        user_col1, user_col2 = st.columns([9, 2])  # Give more space to save button
+        
+        with user_col1:
+            st.markdown(f"""
             <div class="chat-message user-message">
                 <strong>💬 You ({conversation['mbti_type']}) - {timestamp}</strong><br>
                 {conversation['question']}
             </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+        
+        with user_col2:
+            # Save button next to user message - improved layout
+            st.markdown('<div style="padding-top: 0.5rem;"></div>', unsafe_allow_html=True)  # Add some top padding
+            if st.button(
+                "💾 Save",
+                help="Save this conversation to memory",
+                disabled=not st.session_state.memobase_user,
+                key=f"save_conv_{conversation_index}",
+                use_container_width=True
+            ):
+                if st.session_state.memobase_user:
+                    try:
+                        # Save using proper ChatBlob format according to Memobase docs
+                        from memobase import ChatBlob
+                        
+                        # Create ChatBlob with proper message format
+                        chat_blob = ChatBlob(messages=[
+                            {
+                                "role": "user",
+                                "content": conversation['question']
+                            },
+                            {
+                                "role": "assistant", 
+                                "content": conversation['response']
+                            }
+                        ])
+                        
+                        # Insert the chat blob
+                        blob_id = st.session_state.memobase_user.insert(chat_blob)
+                        
+                        # Flush to trigger memory extraction (profiles and events)
+                        st.session_state.memobase_user.flush()
+                        
+                        # Use container to prevent page jumping
+                        with st.container():
+                            st.success("💾 Conversation saved to memory!")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Failed to save: {str(e)}")
+                else:
+                    st.warning("⚠️ Memory service not available")
         
         # Display AI response
         if conversation['response'].startswith("Error:"):
@@ -513,14 +887,12 @@ if st.session_state.conversation_history:
                 <strong>🤖 AI Assistant</strong><br>
                 {conversation['response']}
             </div>
-            </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown(f"""
             <div class="chat-message ai-message">
-                <strong>🤖 AI Assistant ({conversation['mbti_type']} focused)</strong><br>
+                <strong>🤖 {conversation['mbti_type']} Assistant</strong><br>
                 {conversation['response']}
-            </div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -536,3 +908,45 @@ st.markdown("""
     </p>
 </div>
 """, unsafe_allow_html=True)
+
+# Load persistent data from localStorage on page load
+if 'data_loaded_from_storage' not in st.session_state:
+    st.session_state.data_loaded_from_storage = True
+    
+    # Initialize a way to check if we have localStorage data
+    st.markdown("""
+    <script>
+    // Check for existing user data in localStorage
+    const savedName = getNameFromLocalStorage();
+    const savedUserId = getUserIdFromLocalStorage();
+    const savedMemobaseUid = getMemobaseUserIdFromLocalStorage();
+    const currentMemobaseUid = localStorage.getItem('cognitype_current_memobase_uid');
+    
+    // Create hidden elements to communicate with Python
+    if (savedName || savedUserId || savedMemobaseUid || currentMemobaseUid) {
+        const dataDiv = document.createElement('div');
+        dataDiv.id = 'localStorage-data';
+        dataDiv.style.display = 'none';
+        if (savedName) dataDiv.setAttribute('data-name', savedName);
+        if (savedUserId) dataDiv.setAttribute('data-user-id', savedUserId);
+        if (savedMemobaseUid) dataDiv.setAttribute('data-memobase-uid', savedMemobaseUid);
+        if (currentMemobaseUid) dataDiv.setAttribute('data-current-memobase-uid', currentMemobaseUid);
+        document.body.appendChild(dataDiv);
+        
+        console.log('Found localStorage data:', {
+            name: savedName, 
+            userId: savedUserId, 
+            memobaseUid: savedMemobaseUid,
+            currentMemobaseUid: currentMemobaseUid
+        });
+        
+        // Store in Streamlit session for Python access
+        window.localStorage_data = {
+            name: savedName,
+            userId: savedUserId,
+            memobaseUid: savedMemobaseUid,
+            currentMemobaseUid: currentMemobaseUid
+        };
+    }
+    </script>
+    """, unsafe_allow_html=True)
