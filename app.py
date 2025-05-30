@@ -656,8 +656,11 @@ with col1:
         # Initialize name from localStorage if available
         if 'loaded_name' not in st.session_state:
             # Try to get name from URL parameters as a fallback
-            query_params = st.query_params
-            st.session_state.loaded_name = query_params.get("name", "")
+            try:
+                query_params = st.experimental_get_query_params()
+                st.session_state.loaded_name = query_params.get("name", [""])[0]
+            except:
+                st.session_state.loaded_name = ""
             
         user_name = st.text_input(
             "Your name:",
@@ -672,7 +675,10 @@ with col1:
             st.session_state.loaded_name = user_name
             # Update URL parameters to persist name
             if user_name.strip():
-                st.query_params["name"] = user_name
+                try:
+                    st.experimental_set_query_params(name=user_name)
+                except:
+                    pass  # Ignore if fails
             st.markdown(f"""
             <script>
             saveNameToLocalStorage('{user_name}');
