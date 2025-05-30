@@ -7,6 +7,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from memobase import MemoBaseClient, ChatBlob
 import uuid
+import hashlib
 
 # Load environment variables from .env.local (local development)
 load_dotenv('.env.local')
@@ -567,47 +568,22 @@ if st.session_state.memobase_client and st.session_state.memobase_user is None:
         # Small delay to let JavaScript execute
         time.sleep(0.1)
         
-        # For now, we'll use your existing user ID for testing
-        # In production, you'd read the localStorage data properly
-        existing_memobase_id = "b87a1d67-5aa2-4c6b-8d62-a56d841d8d32"
+        # Generate unique user ID for this browser session
+        # Use browser fingerprint + timestamp for uniqueness
+        browser_fingerprint = f"browser_{uuid.uuid4().hex[:8]}_{int(time.time())}"
+        existing_memobase_id = None  # Will create new user each time for now
         
         try:
-            # Try to load existing Memobase user
-            st.session_state.memobase_user = st.session_state.memobase_client.get_user(existing_memobase_id)
-            st.session_state.memobase_user_id = existing_memobase_id
-            
-            # Ensure mapping is saved in localStorage
-            st.markdown(f"""
-            <script>
-            const browserId = window.browserUserData ? window.browserUserData.browserId : getBrowserIdFromLocalStorage();
-            if (browserId) {{
-                saveMemobaseMappingForBrowser(browserId, '{existing_memobase_id}');
-                console.log('Saved mapping for existing user:', browserId, '->', '{existing_memobase_id}');
-            }}
-            </script>
-            """, unsafe_allow_html=True)
-            
-            # Show success without page jumping using JavaScript
-            st.markdown("""
-            <script>
-            // Create a temporary success notification
-            const notification = document.createElement('div');
-            # Success message removed to prevent page jumping
-            # st.success(f"✨ Got your personalized {selected_mbti} response!")
-            </script>
-            """, unsafe_allow_html=True)
-            
-        except Exception as e:
-            # Could not load existing user - continue silently
-            
-            # Create new Memobase user (Memobase generates the ID)
+            # Always create new Memobase user to avoid lock conflicts
+            # In future, implement proper localStorage reading for persistence
             uid = st.session_state.memobase_client.add_user({
                 "app": "cognitype_chatbot",
                 "created_at": datetime.now().isoformat(),
-                "session_type": "persistent_browser"
+                "session_type": "persistent_browser",
+                "browser_fingerprint": browser_fingerprint
             })
             
-            st.session_state.memobase_user_id = uid  # Memobase-generated ID
+            st.session_state.memobase_user_id = uid
             st.session_state.memobase_user = st.session_state.memobase_client.get_user(uid)
             
             # Save the browser -> memobase mapping
@@ -621,6 +597,10 @@ if st.session_state.memobase_client and st.session_state.memobase_user is None:
             </script>
             """, unsafe_allow_html=True)
             
+        except Exception as e:
+            # Could not create user - continue silently
+            pass
+
     except Exception as e:
         # Memory system error - continue silently
         pass
