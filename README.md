@@ -61,55 +61,93 @@ localStorage (Fast) ←→ Memobase Cloud (Persistent)
 
 Complete data flow architecture of the Personality AI Chat system:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              🧠 Personality AI Chat                              │
-└─────────────────────────────────────────────────────────────────────────────────┘
-
-    👤 User Input                   📱 Browser Storage              ☁️  Cloud Memory
-    ┌─────────────┐                ┌─────────────────┐             ┌─────────────────┐
-    │             │                │                 │             │                 │
-    │ • Question  │───────────────▶│ • User Name     │◀───────────▶│ • Chat History  │
-    │ • Personality│                │ • Browser ID    │             │ • User Context  │
-    │   Type       │                │ • Session Data  │             │ • Profile Data  │
-    │             │                │                 │             │                 │
-    └─────────────┘                └─────────────────┘             └─────────────────┘
-           │                                │                              ▲
-           │                                │                              │
-           ▼                                ▼                              │
-    ┌─────────────────────────────────────────────────────────────────────┴─────────┐
-    │                          🤖 AI Processing Layer                              │
-    │                                                                              │
-    │  ┌─────────────┐    ┌─────────────────┐    ┌─────────────────────────────┐  │
-    │  │   Memory    │───▶│ Prompt Builder  │───▶│     Together.ai API         │  │
-    │  │  Context    │    │ + Personality   │    │     (Mistral-7B)           │  │
-    │  │ Retrieval   │    │ + User History  │    │                             │  │
-    │  └─────────────┘    └─────────────────┘    └─────────────────────────────┘  │
-    │                                                           │                  │
-    └───────────────────────────────────────────────────────────┼──────────────────┘
-                                                                │
-                                                                ▼
-    ┌─────────────────────────────────────────────────────────────────────────────────┐
-    │                           📤 Response & Storage                                │
-    │                                                                               │
-    │ ┌─────────────────┐    ┌──────────────┐    ┌────────────────────────────────┐ │
-    │ │ ✨ Personality  │───▶│ 💬 Chat UI   │───▶│ 💾 Save to Memory? (Manual)   │ │
-    │ │ AI Response     │    │ Display      │    │                                │ │
-    │ │                 │    │              │    │ ├─ Yes → Cloud Storage        │ │
-    │ └─────────────────┘    └──────────────┘    │ └─ No  → Session Only         │ │
-    │                                            └────────────────────────────────┘ │
-    └─────────────────────────────────────────────────────────────────────────────────┘
-
-                                ⚡ Data Flow:
+```mermaid
+graph TD
+    %% User Layer
+    User[👤 User Input<br/>• Question<br/>• Personality Type] 
     
-    1. 👤 User enters question & selects personality type
-    2. 📱 localStorage saves user name and browser mapping instantly  
-    3. ☁️  Memobase retrieves relevant conversation history
-    4. 🔧 System builds personality-specific prompt with context
-    5. 🤖 Together.ai API processes with Mistral-7B model
-    6. ✨ AI generates response matching selected personality type
-    7. 💬 Response displayed in chat interface
-    8. 💾 User manually decides to save to long-term memory
+    %% Storage Layer
+    subgraph Storage ["💾 Storage Layer"]
+        LocalStorage[📱 Browser Storage<br/>• User Name<br/>• Browser ID<br/>• Session Data]
+        CloudMemory[☁️ Cloud Memory<br/>• Chat History<br/>• User Context<br/>• Profile Data]
+    end
+    
+    %% Processing Layer
+    subgraph AILayer ["🤖 AI Processing Layer"]
+        MemoryRetrieval[🧠 Memory Context<br/>Retrieval]
+        PromptBuilder[🔧 Prompt Builder<br/>+ Personality<br/>+ User History]
+        TogetherAPI[🚀 Together.ai API<br/>Mistral-7B Model]
+    end
+    
+    %% Response Layer
+    subgraph ResponseLayer ["📤 Response & Storage"]
+        AIResponse[✨ Personality<br/>AI Response]
+        ChatUI[💬 Chat UI<br/>Display]
+        SaveDecision{💾 Save to Memory?<br/>Manual Choice}
+        CloudSave[☁️ Save to Cloud]
+        SessionOnly[📱 Session Only]
+    end
+    
+    %% Data Flow Connections
+    User --> LocalStorage
+    User --> MemoryRetrieval
+    LocalStorage <--> CloudMemory
+    CloudMemory --> MemoryRetrieval
+    MemoryRetrieval --> PromptBuilder
+    PromptBuilder --> TogetherAPI
+    TogetherAPI --> AIResponse
+    AIResponse --> ChatUI
+    ChatUI --> SaveDecision
+    SaveDecision -->|Yes| CloudSave
+    SaveDecision -->|No| SessionOnly
+    CloudSave --> CloudMemory
+    
+    %% Styling
+    classDef userClass fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef storageClass fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef aiClass fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef responseClass fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    
+    class User userClass
+    class LocalStorage,CloudMemory storageClass
+    class MemoryRetrieval,PromptBuilder,TogetherAPI aiClass
+    class AIResponse,ChatUI,SaveDecision,CloudSave,SessionOnly responseClass
+```
+
+### ⚡ Data Flow Steps:
+
+1. **👤 User Input** - User enters question & selects personality type
+2. **📱 Local Storage** - localStorage saves user name and browser mapping instantly  
+3. **☁️ Memory Retrieval** - Memobase retrieves relevant conversation history
+4. **🔧 Prompt Building** - System builds personality-specific prompt with context
+5. **🤖 AI Processing** - Together.ai API processes with Mistral-7B model
+6. **✨ Response Generation** - AI generates response matching selected personality type
+7. **💬 UI Display** - Response displayed in chat interface
+8. **💾 Storage Decision** - User manually decides to save to long-term memory
+
+### 🔄 Memory Architecture:
+```mermaid
+graph LR
+    subgraph Browser ["🌐 Browser"]
+        LS[📱 localStorage<br/>Fast Access]
+    end
+    
+    subgraph Cloud ["☁️ Cloud"]
+        MB[🧠 Memobase<br/>Persistent Storage]
+    end
+    
+    LS <-->|Sync| MB
+    
+    LS --> UI[👤 User Identity<br/>📊 Session Data]
+    MB --> CH[💬 Conversation History<br/>🔄 Cross-Device Sync]
+    
+    classDef browserClass fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef cloudClass fill:#f1f8e9,stroke:#33691e,stroke-width:2px
+    classDef dataClass fill:#fce4ec,stroke:#ad1457,stroke-width:2px
+    
+    class LS,Browser browserClass
+    class MB,Cloud cloudClass
+    class UI,CH dataClass
 ```
 
 ## 🛠️ Technologies Used
